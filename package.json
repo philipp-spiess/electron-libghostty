@@ -1,24 +1,57 @@
 {
   "name": "electron-liquid-glass",
-  "version": "0.1.0",
+  "version": "1.1.1",
   "description": "macOS glass / vibrancy wrapper for Electron BrowserWindow",
-  "main": "js/index.cjs",
-  "types": "index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Meridius-Labs/electron-liquid-glass.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Meridius-Labs/electron-liquid-glass/issues"
+  },
+  "homepage": "https://github.com/Meridius-Labs/electron-liquid-glass#readme",
+  "author": "Meridius Labs",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
   "files": [
+    "dist",
     "js",
     "src",
     "build/Release/*.node",
     "prebuilds/**/*",
-    "index.d.ts",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "clean": "rimraf build prebuilds",
-    "build:native": "prebuildify --napi --strip",
-    "prepack": "npm run build:native",
-    "dev": "npm run build:native && npm start",
-    "start": "npx -y electron examples/electron.cjs"
+    "build": "tsdown",
+    "build:native": "prebuildify --napi --strip --tag-armv --arch=arm64 && prebuildify --napi --strip --arch=x64",
+    "build:all": "bun run build:native && bun run build",
+    "clean": "rimraf build prebuilds dist",
+    "prepack": "bun run build:all",
+    "dev": "bun run build:all && run-p watch-examples start",
+    "watch-examples": "tsc -w --project tsconfig.examples.json",
+    "start": "bun x electronmon ./dist-examples/electron.js",
+    "version:patch": "npm version patch",
+    "version:minor": "npm version minor",
+    "version:major": "npm version major",
+    "version:prerelease": "npm version prerelease",
+    "release": "bun run build:all && npm publish",
+    "release:dry": "bun run build:all && npm publish --dry-run"
   },
   "keywords": [
     "electron",
@@ -27,9 +60,7 @@
     "glass",
     "nsvisualeffectview"
   ],
-  "author": "Your Name",
-  "license": "MIT",
-  "gypfile": true,
+  "gypfile": false,
   "os": [
     "darwin"
   ],
@@ -44,10 +75,14 @@
     "node-gyp-build": "^4"
   },
   "devDependencies": {
-    "prebuildify": "^5",
-    "electron": "^36",
-    "rimraf": "^5",
+    "@3c1u/bun-run-all": "^0.1.2",
     "@types/node": "^20",
+    "electron": "^36",
+    "node-gyp": "^11.2.0",
+    "prebuildify": "^5",
+    "rimraf": "^5",
+    "tsdown": "^0.12.8",
     "typescript": "^5"
-  }
+  },
+  "packageManager": "bun@1.2.23"
 }

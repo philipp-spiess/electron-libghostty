@@ -1,96 +1,247 @@
 # electron-liquid-glass
 
-> macOS "glass" / vibrancy wrapper for an Electron `BrowserWindow`.
+<div align="center">
 
-`electron-liquid-glass` inserts a native `NSGlassEffectView` (or a perfect
-`NSVisualEffectView` fallback) behind your window's web-content, giving you the
-modern frosted-glass look found in Finder, sidebars, etc.
+<img width="387" alt="image" src="https://github.com/user-attachments/assets/3c3c9ea6-2663-4292-b812-a630c2c3f65b" />
 
-- **Native** Objective-C++ under the hood – zero CSS hacks
-- Corner-radius & tint **customisable** from JavaScript
-- Pre-built `.node` binaries provided (Node & Electron)
-- Single-line API – works with any Electron ≥ 22 on macOS 11+
+![npm](https://img.shields.io/npm/v/electron-liquid-glass)
+![npm downloads](https://img.shields.io/npm/dm/electron-liquid-glass)
+![GitHub](https://img.shields.io/github/license/meridius-labs/electron-liquid-glass)
+![Platform](https://img.shields.io/badge/platform-macOS-blue)
+![Node](https://img.shields.io/node/v/electron-liquid-glass)
+
+**Modern macOS glass effects for Electron applications**
+
+_🪄 NATIVE `NSGlassEffectView` integration with ZERO CSS hacks_
+
+[Installation](#-installation) • [Quick Start](#-quick-start) • [API](#-api-reference) • [Examples](examples/) • [Contributing](#-contributing)
+
+</div>
 
 ---
 
-## Install
+## ✨ Features
+
+- 🪟 **Native Glass Effects** - Real `NSGlassEffectView` integration, not CSS approximations
+- ⚡ **Zero Configuration** - Works out of the box with any Electron app
+- 🎨 **Fully Customizable** - Corner radius, tint colors, and glass variants
+- 📦 **Modern Package** - Dual ESM/CommonJS support with TypeScript declarations
+- 🔧 **Pre-built Binaries** - No compilation required for standard setups
+- 🌙 **Auto Dark Mode** - Automatically adapts to system appearance changes
+
+## 🚀 Installation
 
 ```bash
-npm i electron-liquid-glass          # or yarn / pnpm / bun
+# npm
+npm install electron-liquid-glass
+
+# yarn
+yarn add electron-liquid-glass
+
+# pnpm
+pnpm add electron-liquid-glass
+
+# bun
+bun add electron-liquid-glass
 ```
 
-Pre-built binaries are downloaded automatically. If you run a custom Electron
-version just rebuild:
+### Requirements
+
+- **macOS 26+** (Tahoe or later)
+- **Electron 30+**
+- **Node.js 22+**
+
+> **Note**: This package only works on macOS. On other platforms, it provides safe no-op fallbacks.
+
+## 🎯 Quick Start
+
+### Basic Usage
+
+```javascript
+import { app, BrowserWindow } from "electron";
+import liquidGlass from "electron-liquid-glass";
+
+app.whenReady().then(() => {
+  const win = new BrowserWindow({
+    width: 800,
+    height: 600,
+
+    vibrancy: false, // <-- ❌❌❌ do NOT set vibrancy alongside with liquid glass, it will override and look blurry
+
+    transparent: true, // <-- This MUST be true
+  });
+
+  win.setWindowButtonVisibility(true); // <-- ✅ This is required to show the window buttons
+
+  win.loadFile("index.html");
+
+  /**
+   * 🪄 Apply glass effect after content loads 🪄
+   */
+  win.webContents.once("did-finish-load", () => {
+    // 🪄 Apply effect, get handle
+    const glassId = liquidGlass.addView(win.getNativeWindowHandle(), {
+      /* options */
+    });
+
+    // Experimental, undocumented private APIs
+    liquidGlass.unstable_setVariant(glassId, 2);
+  });
+});
+```
+
+### TypeScript Usage
+
+```typescript
+import { BrowserWindow } from "electron";
+import liquidGlass, { GlassOptions } from "electron-liquid-glass";
+
+const options: GlassOptions = {
+  cornerRadius: 16, // (optional)
+  tintColor: "#44000010", // black tint (optional)
+  opaque: true, // add opaque background behind glass (optional)
+};
+
+liquidGlass.addView(window.getNativeWindowHandle(), options);
+```
+
+## 📚 API Reference
+
+### `liquidGlass.addView(handle, options?)`
+
+Applies a glass effect to an Electron window.
+
+**Parameters:**
+
+- `handle: Buffer` - The native window handle from `BrowserWindow.getNativeWindowHandle()`
+- `options?: GlassOptions` - Configuration options
+
+**Returns:** `number` - A unique view ID for future operations
+
+### `GlassOptions`
+
+```typescript
+interface GlassOptions {
+  cornerRadius?: number; // Corner radius in pixels (default: 0)
+  tintColor?: string; // Hex color with optional alpha (#RRGGBB or #RRGGBBAA)
+  opaque?: boolean; // Add opaque background behind glass (default: false)
+}
+```
+
+---
+
+### UNDOCUMENTED EXPERIMENTAL METHODS
+
+> ⚠️ **Warning**: DO NOT USE IN PROD. These methods use private macOS APIs and may change in future versions.
+
+```typescript
+// Glass variants (number) (0-15, 19 are functional)
+liquidGlass.unstable_setVariant(glassId, 2);
+
+// Scrim overlay (0 = off, 1 = on)
+liquidGlass.unstable_setScrim(glassId, 1);
+
+// Subdued state (0 = normal, 1 = subdued)
+liquidGlass.unstable_setSubdued(glassId, 1);
+```
+
+## 🔧 Development
+
+### Building from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/meridius-labs/electron-liquid-glass.git
+cd electron-liquid-glass
+
+# Install dependencies
+bun install
+
+# Build native module
+bun run build:native
+
+# Build TypeScript library
+bun run build
+
+# Build everything
+bun run build:all
+```
+
+### Rebuilding for Custom Electron
+
+If you're using a custom Electron version:
 
 ```bash
 npx electron-rebuild -f -w electron-liquid-glass
 ```
 
-## Quick start
+### Project Structure
 
-```js
-const { app, BrowserWindow } = require("electron");
-const glass = require("electron-liquid-glass");
-
-app.whenReady().then(() => {
-  const win = new BrowserWindow({ width: 800, height: 600 });
-  win.loadFile("index.html");
-
-  win.webContents.once("did-finish-load", () => {
-    glass.addView(win.getNativeWindowHandle(), {
-      cornerRadius: 12,
-      tintColor: "#88FFFFFF", // 50 % white
-    });
-  });
-});
+```
+electron-liquid-glass/
+├── src/                 # Native C++ source code
+│   ├── glass_effect.mm  # Objective-C++ implementation
+│   └── liquidglass.cc   # Node.js addon bindings
+├── js/                  # TypeScript source
+│   ├── index.ts         # Main library code
+│   └── native-loader.ts # Native module loader
+├── dist/                # Built library (generated)
+├── examples/            # Example applications
+└── prebuilds/          # Pre-built binaries
 ```
 
-### API
+## 🏗️ How It Works
 
-```ts
-addView(handle: Buffer, options?: {
-  cornerRadius?: number;   // default 0
-  tintColor?: string;      // any #RRGGBB[AA] string
-}): number          // returns a view-id (future APIs)
-```
+1. **Native Integration**: Uses Objective-C++ to create `NSGlassEffectView` instances
+2. **View Hierarchy**: Inserts glass views behind your web content, not over it
+3. **Automatic Updates**: Listens for system appearance changes to keep effects in sync
+4. **Memory Management**: Properly manages native view lifecycle
 
-| Option         | Description                                        |
-| -------------- | -------------------------------------------------- |
-| `cornerRadius` | Rounds all corners of the effect view.             |
-| `tintColor`    | Tints the glass towards the given sRGB hex colour. |
+### Technical Details
 
-> **macOS only** – calling on Windows / Linux throws an error at runtime.
+- **Primary**: Uses `NSGlassEffectView` API when available
+- **Fallback**: Falls back to public `NSVisualEffectView` on older systems
+- **Performance**: Minimal overhead, native rendering performance
+- **Compatibility**: Works with all Electron window configurations
 
-## How it works
+## 🤝 Contributing
 
-1. JavaScript passes the native `NSView*` (from
-   `BrowserWindow.getNativeWindowHandle()`) to the addon.
-2. Objective-C++ grabs the view's superview, creates an `NSGlassEffectView`
-   (private) or a public `NSVisualEffectView` if unavailable, and inserts it
-   **below** your web-content.
-3. Corner-radius is applied via CALayer; tint via `-setTintColor:` when
-   available.
-4. Listens for `NSAppearanceDidChangeNotification` to keep the effect in sync
-   with light/dark mode.
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-## Rebuilding manually
+### Development Setup
 
-```bash
-npm run clean        # removes build/
-npm run build:native # generates prebuild under prebuilds/
-```
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes and test thoroughly
+4. Commit with conventional commits: `git commit -m "feat: add amazing feature"`
+5. Push and create a Pull Request
 
-## Roadmap
+### Reporting Issues
 
-- Remove / update the glass view (currently only add).
-- Extra materials (`fullscreen-ui`, `sidebar`, …).
-- Support colour-dynamic tints.
+- Use the [issue tracker](https://github.com/meridius-labs/electron-liquid-glass/issues)
+- Include your macOS version, Electron version, and Node.js version
+- Provide a minimal reproduction case when possible
 
-## Contributing
+## 📋 Roadmap
 
-PRs & issues welcome. Make sure `npm test` passes and follow the
-[Code of Conduct](CODE_OF_CONDUCT.md) when interacting.
+- [ ] **View Management** - Remove and update existing glass views
 
-## Licence
+## 🙏 Acknowledgments
 
-MIT © Your Name 2025
+- Apple's private `NSGlassEffectView` API documentation (reverse-engineered)
+- The Electron team for excellent native integration capabilities
+- Contributors and users who help improve this library
+
+## 📄 License
+
+MIT © [Meridius Labs](https://github.com/meridius-labs) 2025
+
+---
+
+<div align="center">
+
+**Made with ❤️ for the Electron community**
+
+[⭐ Star on GitHub](https://github.com/meridius-labs/electron-liquid-glass) • [🐛 Report Bug](https://github.com/meridius-labs/electron-liquid-glass/issues) • [💡 Request Feature](https://github.com/meridius-labs/electron-liquid-glass/issues)
+
+</div>

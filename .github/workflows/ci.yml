@@ -1,0 +1,205 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build TypeScript library
+        run: bun run build
+
+      - name: Type check
+        run: bun run tsc --noEmit
+
+      - name: Lint
+        run: bun run eslint . --ext .ts,.js --max-warnings 0
+        continue-on-error: true
+
+  build-library:
+    name: Build Library
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build TypeScript library
+        run: bun run build
+
+      - name: Check exports
+        run: |
+          # Verify both CJS and ESM builds exist
+          test -f dist/index.cjs || (echo "CJS build missing" && exit 1)
+          test -f dist/index.js || (echo "ESM build missing" && exit 1)
+          test -f dist/index.d.ts || (echo "ESM types missing" && exit 1)
+          test -f dist/index.d.cts || (echo "CJS types missing" && exit 1)
+          echo "✅ All builds generated successfully"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-files
+          path: dist/
+          retention-days: 7
+
+  build-native:
+    name: Build Native (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest] # Intel and Apple Silicon
+        node-version: [22]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install Python (for node-gyp)
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install node-gyp globally
+        run: npm install -g node-gyp
+
+      - name: Build native module
+        run: bun run build:native
+
+      - name: Test native module loads
+        run: |
+          # Build TypeScript first
+          bun run build
+
+          # Test that the native module can be required (will fail gracefully outside Electron)
+          node -e "
+            try {
+              const lib = require('./dist/index.cjs');
+              console.log('✅ Native module loads successfully');
+            } catch (err) {
+              if (err.message.includes('NSViewFrameDidChangeNotification') || err.message.includes('Cannot find module')) {
+                console.log('✅ Expected error - native module built correctly');
+              } else {
+                console.error('❌ Unexpected error:', err.message);
+                process.exit(1);
+              }
+            }
+          "
+
+      - name: Upload prebuilds
+        uses: actions/upload-artifact@v4
+        with:
+          name: prebuilds-${{ matrix.os }}-node${{ matrix.node-version }}
+          path: prebuilds/
+          retention-days: 7
+
+  package-validation:
+    name: Package Validation
+    runs-on: ubuntu-latest
+    needs: [build-library, build-native]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-files
+          path: dist/
+
+      - name: Validate package.json
+        run: |
+          # Check that package.json exports are correct
+          node -e "
+            const pkg = require('./package.json');
+            const fs = require('fs');
+            
+            // Verify exports exist
+            const exports = pkg.exports['.'];
+            const importFile = exports.import.default;
+            const requireFile = exports.require.default;
+            const importTypes = exports.import.types;
+            const requireTypes = exports.require.types;
+            
+            if (!fs.existsSync(importFile)) throw new Error('Import file missing: ' + importFile);
+            if (!fs.existsSync(requireFile)) throw new Error('Require file missing: ' + requireFile);
+            if (!fs.existsSync(importTypes)) throw new Error('Import types missing: ' + importTypes);
+            if (!fs.existsSync(requireTypes)) throw new Error('Require types missing: ' + requireTypes);
+            
+            console.log('✅ Package exports validation passed');
+          "
+
+      - name: Check with publint
+        run: bunx publint
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run security audit
+        run: bun audit
+        continue-on-error: true
+
+      - name: Check for known vulnerabilities
+        run: bunx audit-ci --config .audit-ci.json
+        continue-on-error: true

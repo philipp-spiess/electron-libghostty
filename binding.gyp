@@ -17,6 +17,7 @@
                 "CLANG_CXX_LIBRARY": "libc++",
                 "MACOSX_DEPLOYMENT_TARGET": "10.14",
                 "CLANG_CXX_LANGUAGE_STANDARD": "c++17",
+                "OTHER_LDFLAGS": ["-framework AppKit"],
             },
             "msvs_settings": {"VCCLCompilerTool": {"ExceptionHandling": 1}},
         }

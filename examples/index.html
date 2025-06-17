@@ -27,10 +27,71 @@
       input {
         -webkit-app-region: no-drag;
       }
+
+      #controls {
+        position: absolute;
+        top: 40px;
+        left: 20px;
+        padding: 12px 16px;
+
+        border-radius: 12px;
+
+        color: white;
+        font-family: -apple-system, sans-serif;
+      }
+
+      #controls h2 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .group {
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+      }
+
+      .group label {
+        min-width: 120px;
+        font-size: 12px;
+      }
+
+      .buttons button {
+        margin-right: 4px;
+        margin-bottom: 4px;
+        padding: 4px 8px;
+        font-size: 12px;
+        border: 1px solid rgba(0, 0, 0, 0.2);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.4);
+        cursor: pointer;
+      }
+      .buttons button.active {
+        background: #007aff;
+        color: #fff;
+      }
     </style>
   </head>
   <body>
     <div class="drag-region"></div>
+
+    <div id="controls">
+      <div class="group">
+        <label>Variant:</label>
+        <div class="buttons" id="variant-buttons"></div>
+      </div>
+
+      <div class="group">
+        <label>Scrim:</label>
+        <div class="buttons" id="scrim-buttons"></div>
+      </div>
+
+      <div class="group">
+        <label>Subdued:</label>
+        <div class="buttons" id="subdued-buttons"></div>
+      </div>
+    </div>
 
     <script src="./index.js"></script>
   </body>
