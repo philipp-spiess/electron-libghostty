@@ -22,6 +22,7 @@ export interface LiquidGlassNative {
 // Create a nice JavaScript wrapper
 class LiquidGlass extends EventEmitter {
   private _addon?: LiquidGlassNative;
+  private _isGlassSupported: boolean | undefined;
 
   // Instance property for easy access to variants
   readonly GlassMaterialVariant: typeof GlassMaterialVariant =
@@ -29,26 +30,14 @@ class LiquidGlass extends EventEmitter {
 
   constructor() {
     super();
-    if (process.platform !== "darwin") {
-      console.warn(
-        "electron-liquid-glass only supports macOS – liquid glass functionality will be disabled."
-      );
-      return;
-    }
-
-    // Check the major macOS version (e.g. 14.x, 13.x)
-    const macosVersion = Number(
-      execSync("sw_vers -productVersion").toString().trim().split(".")[0]
-    );
-
-    if (macosVersion < 26) {
-      console.warn(
-        "electron-liquid-glass requires macOS 26 or higher – liquid glass functionality will be disabled."
-      );
-      return;
-    }
 
     try {
+      if (!this.isMacOS()) {
+        return;
+      }
+
+      // Native addon uses liquid glass (macOS 26+)
+      // or falls back to legacy blur as needed.
       this._addon = new native.LiquidGlassNative();
     } catch (err) {
       console.error(
@@ -58,22 +47,42 @@ class LiquidGlass extends EventEmitter {
     }
   }
 
+  private isMacOS(): boolean {
+    return process.platform === "darwin";
+  }
+
+  /**
+   * Check if liquid glass is supported on the current platform
+   * @returns true if liquid glass is supported on the current platform
+   */
+  public isGlassSupported(): boolean {
+    if (this._isGlassSupported !== undefined) return this._isGlassSupported;
+
+    const supported =
+      this.isMacOS() &&
+      Number(
+        execSync("sw_vers -productVersion").toString().trim().split(".")[0]
+      ) >= 26;
+
+    this._isGlassSupported = supported;
+    return supported;
+  }
+
   /**
    * Wrap the Electron window with a glass / vibrancy view.
+   *
+   * ⚠️ Will gracefully fall back to legacy macOS blur if liquid glass is not supported.
    * @param handle BrowserWindow.getNativeWindowHandle()
    * @param options Glass effect options
-   * @returns id – can be used for future API (remove/update)
+   * @returns id – can be used for future API (remove/update), -1 if not supported
    */
   addView(handle: Buffer, options: GlassOptions = {}): number {
     if (!Buffer.isBuffer(handle)) {
-      console.error("electron-liquid-glass: handle must be a Buffer");
-      return -1;
+      throw new Error("[liquidGlass.addView] handle must be a Buffer");
     }
 
     if (!this._addon) {
-      console.warn(
-        "electron-liquid-glass is unavailable on this platform – addView will be a no-op."
-      );
+      // unavailable on this platform
       return -1;
     }
 
@@ -81,12 +90,10 @@ class LiquidGlass extends EventEmitter {
   }
 
   private setVariant(id: number, variant: GlassMaterialVariant): void {
-    // internal use
     if (!this._addon || typeof this._addon.setVariant !== "function") return;
     this._addon.setVariant(id, variant);
   }
 
-  // public
   unstable_setVariant(id: number, variant: GlassMaterialVariant): void {
     this.setVariant(id, variant);
   }

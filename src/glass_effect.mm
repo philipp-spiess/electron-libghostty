@@ -72,8 +72,8 @@ extern "C" int AddGlassEffectView(unsigned char *buffer, bool opaque) {
     NSView *rootView = *reinterpret_cast<NSView **>(buffer);
     if (!rootView) return;
 
-    // Insert under the *container* view (superview) so web contents stays on top.
-    NSView *container = rootView.superview ?: rootView;
+    // Find the proper container - avoid NSThemeFrame
+    NSView *container = rootView;
 
     // Remove previous glass and background views (if any)
     NSView *oldGlass = objc_getAssociatedObject(container, kGlassEffectKey);
