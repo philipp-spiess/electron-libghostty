@@ -39,7 +39,7 @@
   ],
   "scripts": {
     "build": "tsdown",
-    "build:native": "prebuildify --napi --strip",
+    "build:native": "prebuildify --napi --strip --tag-armv --arch=arm64 && prebuildify --napi --strip --arch=x64",
     "build:all": "bun run build:native && bun run build",
     "clean": "rimraf build prebuilds dist",
     "prepack": "bun run build:all",
@@ -60,7 +60,7 @@
     "glass",
     "nsvisualeffectview"
   ],
-  "gypfile": true,
+  "gypfile": false,
   "os": [
     "darwin"
   ],
