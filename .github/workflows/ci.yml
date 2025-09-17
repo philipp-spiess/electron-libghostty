@@ -77,7 +77,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-13, macos-14] # Intel and Apple Silicon
+        os: [macos-latest] # Intel and Apple Silicon
         node-version: [22]
     steps:
       - name: Checkout
