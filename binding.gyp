@@ -1,8 +1,11 @@
 {
     "targets": [
         {
-            "target_name": "liquidglass",
-            "sources": ["src/liquidglass.cc", "src/glass_effect.mm"],
+            "target_name": "native_overlay",
+            "sources": [
+                "src/native_overlay.cc",
+                "src/overlay_view.mm",
+            ],
             "include_dirs": [
                 "<!@(node -p \"require('node-addon-api').include\")",
                 "include",

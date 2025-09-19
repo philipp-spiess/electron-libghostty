@@ -1,41 +1,88 @@
-// Renderer side for examples – tweak liquid glass
 const { ipcRenderer } = require("electron");
-const liquidGlass = require("../dist/index").default;
 
-let viewId = null;
+const TARGET_SELECTOR = "#overlay-target";
+const LOG_SELECTOR = "#keyboard-log";
+const LOG_MAX_ENTRIES = 20;
 
-ipcRenderer.on("glass-ready", (_event, { viewId: id }) => {
-  viewId = id;
+function getTargetRect() {
+  const target = document.querySelector(TARGET_SELECTOR);
+  if (!target) {
+    return null;
+  }
+
+  const rect = target.getBoundingClientRect();
+  const scale = window.devicePixelRatio || 1;
+
+  return {
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    scale,
+  };
+}
+
+let pending = false;
+
+function flushRect() {
+  pending = false;
+  const rect = getTargetRect();
+  if (rect) {
+    ipcRenderer.send("native-overlay:update", rect);
+  } else {
+    ipcRenderer.send("native-overlay:hide");
+  }
+}
+
+function scheduleRectUpdate() {
+  if (pending) return;
+  pending = true;
+  queueMicrotask(flushRect);
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  const target = document.querySelector(TARGET_SELECTOR);
+  const logContainer = document.querySelector(LOG_SELECTOR);
+
+  if (logContainer) {
+    logContainer.textContent = "Keyboard events will appear here.";
+
+    const appendLog = (event) => {
+      if (!logContainer) return;
+
+      if (!logContainer.dataset.hasEvents) {
+        logContainer.textContent = "";
+        logContainer.dataset.hasEvents = "true";
+      }
+
+      const entry = document.createElement("div");
+      entry.textContent = `${new Date().toLocaleTimeString()} key=${event.key} code=${event.code} target=${event.target?.tagName?.toLowerCase()}`;
+
+      // Prepend newest entries to keep recent events visible.
+      logContainer.prepend(entry);
+      while (logContainer.childNodes.length > LOG_MAX_ENTRIES) {
+        logContainer.removeChild(logContainer.lastChild);
+      }
+    };
+
+    window.addEventListener(
+      "keydown",
+      (event) => {
+        appendLog(event);
+      },
+      true
+    );
+  }
+
+  if (target && window.ResizeObserver) {
+    const resizeObserver = new ResizeObserver(() => scheduleRectUpdate());
+    resizeObserver.observe(target);
+  }
+
+  window.addEventListener("scroll", scheduleRectUpdate, { passive: true });
+  window.addEventListener("resize", scheduleRectUpdate);
+
+  ipcRenderer.on("native-overlay:request-bounds", () => scheduleRectUpdate());
+
+  scheduleRectUpdate();
 });
-
-function send(type, value) {
-  if (viewId == null) return;
-  ipcRenderer.send("glass-set", { type, value });
-}
-
-function buildButtons(containerId, type, values) {
-  const container = document.getElementById(containerId);
-  values.forEach((v) => {
-    const btn = document.createElement("button");
-    btn.textContent = typeof v === "object" && v.name !== undefined ? v.name : String(v);
-    btn.addEventListener("click", () => {
-      const value = typeof v === "object" && v.value !== undefined ? v.value : v;
-      send(type, value);
-      [...container.children].forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-    });
-    container.appendChild(btn);
-  });
-}
-console.log(liquidGlass);
-
-// Only expose production-safe settings
-buildButtons(
-  "variant-buttons",
-  "variant",
-  Object.entries(liquidGlass.GlassMaterialVariant).map(([name, value]) => {
-    return { name, value };
-  })
-);
-buildButtons("scrim-buttons", "scrim", [0, 1]);
-buildButtons("subdued-buttons", "subdued", [0, 1]);
