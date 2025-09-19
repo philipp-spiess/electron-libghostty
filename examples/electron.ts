@@ -1,11 +1,19 @@
 import { app, BrowserWindow, screen, ipcMain } from "electron";
-import myAddon from "../dist/index.js";
+import type { WebContents } from "electron";
+import nativeOverlay from "../dist/index.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-let mainWindow: BrowserWindow;
+type OverlayPayload = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  scale?: number;
+};
 
-let viewId: number | null = null;
+let mainWindow: BrowserWindow;
+let overlayId: number | null = null;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -18,8 +26,7 @@ app.whenReady().then(() => {
       screen.getPrimaryDisplay().workArea.width -
       800,
     y: screen.getPrimaryDisplay().workArea.y + 100,
-    frame: false,
-    transparent: true,
+    frame: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -28,45 +35,54 @@ app.whenReady().then(() => {
 
   mainWindow.loadFile(path.join(__dirname, "../examples/index.html"));
 
-  // Once the DOM/renderer is ready show the glass effect
   mainWindow.webContents.once("did-finish-load", () => {
-    try {
-      if (!myAddon) {
-        console.error("myAddon is not loaded");
-        return;
-      }
-
-      viewId = myAddon.addView(mainWindow.getNativeWindowHandle(), {
-        // opaque: true, // Add opaque background behind glass effect
-        // cornerRadius: 24,
-      });
-      mainWindow.setWindowButtonVisibility(true); // restore traffic lights
-
-      // Inform renderer that glass view is ready
-      mainWindow.webContents.send("glass-ready", { viewId });
-    } catch (err) {
-      console.error("addView failed:", err);
-    }
+    mainWindow.webContents.send("native-overlay:request-bounds");
   });
 });
 
-// Listen for renderer tweaks
-ipcMain.on("glass-set", (_event, { type, value }) => {
-  if (viewId === null) return;
+const toOverlayFrame = (rect: OverlayPayload, webContents: WebContents) => {
+  const zoom = webContents.getZoomFactor() || 1;
+  return {
+    x: rect.x / zoom,
+    y: rect.y / zoom,
+    width: rect.width / zoom,
+    height: rect.height / zoom,
+    scale: rect.scale,
+  };
+};
+
+ipcMain.on("native-overlay:update", (_event, rect: OverlayPayload) => {
+  if (!mainWindow) return;
+  if (!rect) return;
+
   try {
-    switch (type) {
-      case "variant":
-        myAddon.unstable_setVariant(viewId, value ?? 0);
-        break;
-      case "scrim":
-        myAddon.unstable_setScrim(viewId, value);
-        break;
-      case "subdued":
-        myAddon.unstable_setSubdued(viewId, value);
-        break;
+    const frame = toOverlayFrame(rect, mainWindow.webContents);
+
+    if (overlayId === null) {
+      overlayId = nativeOverlay.create(
+        mainWindow.getNativeWindowHandle(),
+        frame
+      );
+      return;
     }
+
+    nativeOverlay.update(overlayId, frame);
   } catch (err) {
-    console.error("glass-set failed", err);
+    console.error("native-overlay:update failed", err);
+  }
+});
+
+ipcMain.on("native-overlay:hide", () => {
+  if (overlayId === null) {
+    return;
+  }
+
+  try {
+    nativeOverlay.remove(overlayId);
+  } catch (err) {
+    console.error("native-overlay:hide failed", err);
+  } finally {
+    overlayId = null;
   }
 });
 
@@ -79,7 +95,6 @@ app.on("window-all-closed", () => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    /* re-create */
     mainWindow = new BrowserWindow({ width: 800, height: 600 });
     mainWindow.loadFile(path.join(__dirname, "index.html"));
   }

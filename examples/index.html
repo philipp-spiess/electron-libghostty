@@ -3,95 +3,60 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Document</title>
+    <title>Native Overlay Demo</title>
     <style>
       html,
       body {
-        background-color: transparent !important;
-      }
-      /* Anything with `drag` lets the user move the window */
-      .drag-region {
-        -webkit-app-region: drag;
-        /* optional visual cue */
-        height: 28px; /* same as regular title-bar */
-
-        position: absolute;
-        inset: 0;
-        z-index: 1000;
+        background-color: #050505 !important;
+        margin: 0;
+        padding: 0;
+        font-family: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        color: #f8fafc;
       }
 
-      /* Interactive items sitting on that region must be exempt */
-      .no-drag,
-      button,
-      a,
-      input {
-        -webkit-app-region: no-drag;
+      main {
+        padding: 48px 56px 64px;
+        max-width: 720px;
       }
 
-      #controls {
-        position: absolute;
-        top: 40px;
-        left: 20px;
-        padding: 12px 16px;
-
-        border-radius: 12px;
-
-        color: white;
-        font-family: -apple-system, sans-serif;
+      #overlay-target {
+        position: relative;
+        padding: 24px;
+        border-radius: 0;
+        background: rgba(15, 118, 110, 0.12);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        color: #e0f2f1;
+        font-weight: 500;
+        min-height: 220px;
       }
 
-      #controls h2 {
-        margin: 0 0 10px;
-        font-size: 14px;
-        font-weight: 600;
-      }
-
-      .group {
-        margin-bottom: 10px;
-        display: flex;
-        align-items: center;
-      }
-
-      .group label {
-        min-width: 120px;
-        font-size: 12px;
-      }
-
-      .buttons button {
-        margin-right: 4px;
-        margin-bottom: 4px;
-        padding: 4px 8px;
-        font-size: 12px;
-        border: 1px solid rgba(0, 0, 0, 0.2);
-        border-radius: 6px;
-        background: rgba(255, 255, 255, 0.4);
-        cursor: pointer;
-      }
-      .buttons button.active {
-        background: #007aff;
-        color: #fff;
+      #overlay-target::after {
+        display: none;
       }
     </style>
   </head>
   <body>
-    <div class="drag-region"></div>
+    <main>
+      <div style="display: flex; flex-direction: column; gap: 24px">
+        <section id="overlay-target"></section>
 
-    <div id="controls">
-      <div class="group">
-        <label>Variant:</label>
-        <div class="buttons" id="variant-buttons"></div>
+        <section
+          id="keyboard-log"
+          style="
+            min-height: 140px;
+            padding: 16px;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            background: rgba(71, 85, 105, 0.15);
+            font-family: 'SFMono-Regular', ui-monospace, SFMono-Regular;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+          "
+        ></section>
       </div>
-
-      <div class="group">
-        <label>Scrim:</label>
-        <div class="buttons" id="scrim-buttons"></div>
-      </div>
-
-      <div class="group">
-        <label>Subdued:</label>
-        <div class="buttons" id="subdued-buttons"></div>
-      </div>
-    </div>
+    </main>
 
     <script src="./index.js"></script>
   </body>
