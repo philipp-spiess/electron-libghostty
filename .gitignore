@@ -37,4 +37,5 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # Native build artefacts
 build
 prebuilds
+native-deps
 *.node

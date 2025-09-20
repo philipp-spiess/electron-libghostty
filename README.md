@@ -22,12 +22,12 @@ _🪄 NATIVE `NSGlassEffectView` integration with ZERO CSS hacks_
 
 ## ✨ Features
 
-- 🪟 **Native Glass Effects** - Real `NSGlassEffectView` integration, not CSS approximations
-- ⚡ **Zero Configuration** - Works out of the box with any Electron app
-- 🎨 **Fully Customizable** - Corner radius, tint colors, and glass variants
-- 📦 **Modern Package** - Dual ESM/CommonJS support with TypeScript declarations
-- 🔧 **Pre-built Binaries** - No compilation required for standard setups
-- 🌙 **Auto Dark Mode** - Automatically adapts to system appearance changes
+- 🖥️ **Ghostty Terminal Embedding** – Host libghostty surfaces directly inside Electron tabs.
+- 🪟 **Native Glass Effects** – Real `NSGlassEffectView` integration, not CSS approximations.
+- ⚡ **Zero Configuration** – Works out of the box with any Electron app.
+- 🎨 **Fully Customizable** – Corner radius, tint colors, and glass variants.
+- 📦 **Modern Package** – Dual ESM/CommonJS support with TypeScript declarations.
+- 🌙 **Auto Dark Mode** – Automatically adapts to system appearance changes.
 
 ## 🚀 Installation
 
@@ -47,9 +47,10 @@ bun add electron-liquid-glass
 
 ### Requirements
 
-- **macOS 26+** (Tahoe or later)
+- **macOS 13 Ventura or later**
 - **Electron 30+**
 - **Node.js 22+**
+- **Zig 0.14.0+** (only required when building libghostty locally)
 
 > **Note**: This package only works on macOS. On other platforms, it provides safe no-op fallbacks.
 
@@ -144,6 +145,14 @@ liquidGlass.unstable_setScrim(glassId, 1);
 // Subdued state (0 = normal, 1 = subdued)
 liquidGlass.unstable_setSubdued(glassId, 1);
 ```
+
+## 🧩 Libghostty Embedding
+
+- Terminal surfaces originate from the vendored `libghostty` submodule in `third_party/libghostty`.
+- The C API exposed to Objective-C++ lives in `third_party/libghostty/include/ghostty.h`.
+- Defaults and embedded asset tables are defined in `third_party/libghostty/src/apprt/embedded.zig`.
+- Ghostty’s macOS Swift sources (`third_party/libghostty/macos/Sources/App/macOS/AppDelegate.swift`, `Ghostty.Surface.swift`, etc.) illustrate the expected lifecycle and threading model for `ghostty_app_t` and `ghostty_surface_t`.
+- See [docs/libghostty.md](docs/libghostty.md) for build flags, environment variables, and integration steps specific to this repo.
 
 ## 🔧 Development
 

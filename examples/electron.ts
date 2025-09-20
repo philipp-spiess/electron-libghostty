@@ -1,6 +1,6 @@
 import { app, BrowserWindow, screen, ipcMain } from "electron";
 import type { WebContents } from "electron";
-import nativeOverlay from "../dist/index.js";
+import ghosttyHost from "../dist/index.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,7 +13,7 @@ type OverlayPayload = {
 };
 
 let mainWindow: BrowserWindow;
-let overlayId: number | null = null;
+let surfaceId: number | null = null;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,6 +38,34 @@ app.whenReady().then(() => {
   mainWindow.webContents.once("did-finish-load", () => {
     mainWindow.webContents.send("native-overlay:request-bounds");
   });
+
+  ghosttyHost.onEvent((event) => {
+    console.info("[ghostty] event", event);
+  });
+
+  mainWindow.on("focus", () => {
+    if (surfaceId !== null) {
+      ghosttyHost.setFocus(surfaceId, true);
+    }
+  });
+
+  mainWindow.on("blur", () => {
+    if (surfaceId !== null) {
+      ghosttyHost.setFocus(surfaceId, false);
+    }
+  });
+
+  mainWindow.on("hide", () => {
+    if (surfaceId !== null) {
+      ghosttyHost.setOccluded(surfaceId, true);
+    }
+  });
+
+  mainWindow.on("show", () => {
+    if (surfaceId !== null) {
+      ghosttyHost.setOccluded(surfaceId, false);
+    }
+  });
 });
 
 const toOverlayFrame = (rect: OverlayPayload, webContents: WebContents) => {
@@ -58,31 +86,31 @@ ipcMain.on("native-overlay:update", (_event, rect: OverlayPayload) => {
   try {
     const frame = toOverlayFrame(rect, mainWindow.webContents);
 
-    if (overlayId === null) {
-      overlayId = nativeOverlay.create(
+    if (surfaceId === null) {
+      surfaceId = ghosttyHost.create(
         mainWindow.getNativeWindowHandle(),
         frame
       );
       return;
     }
 
-    nativeOverlay.update(overlayId, frame);
+    ghosttyHost.resize(surfaceId, frame);
   } catch (err) {
     console.error("native-overlay:update failed", err);
   }
 });
 
 ipcMain.on("native-overlay:hide", () => {
-  if (overlayId === null) {
+  if (surfaceId === null) {
     return;
   }
 
   try {
-    nativeOverlay.remove(overlayId);
+    ghosttyHost.destroy(surfaceId);
   } catch (err) {
     console.error("native-overlay:hide failed", err);
   } finally {
-    overlayId = null;
+    surfaceId = null;
   }
 });
 
