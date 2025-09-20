@@ -9,7 +9,11 @@ Thank you for your interest in contributing! This guide will help you get starte
 - **macOS** (required for native development)
 - **Node.js** 18+
 - **Bun** (preferred package manager)
-- **Xcode Command Line Tools**
+- **Zig** **0.14.0** or newer (libghostty minimum)
+- **Xcode Command Line Tools** (for `clang`, `lipo`, `dsymutil`, Metal headers)
+- **CMake** and **Ninja** (only needed when rebuilding libghostty vendor dependencies)
+
+> ℹ️ After installing Zig, warm its cache once with `zig fetch --global-cache-dir ~/.cache/zig` so subsequent libghostty builds avoid repeated downloads.
 
 ### Getting Started
 
@@ -20,25 +24,31 @@ Thank you for your interest in contributing! This guide will help you get starte
    cd electron-liquid-glass
    ```
 
-2. **Install dependencies**
+2. **Initialize submodules**
+
+   ```bash
+   git submodule update --init --recursive
+   ```
+
+3. **Install dependencies**
 
    ```bash
    bun install
    ```
 
-3. **Build the native module**
+4. **Build the native module**
 
    ```bash
    bun run build:native
    ```
 
-4. **Build the TypeScript library**
+5. **Build the TypeScript library**
 
    ```bash
    bun run build
    ```
 
-5. **Run the example**
+6. **Run the example**
    ```bash
    bun run dev
    ```
@@ -119,6 +129,19 @@ We follow [Conventional Commits](https://conventionalcommits.org/):
 - Test the example application
 
 ## Native Development
+
+### Libghostty Submodule
+
+- The upstream Ghostty embedding API is vendored at `third_party/libghostty`.
+- Track changes by updating the submodule: `git submodule update --remote --merge third_party/libghostty`.
+- Record the upstream commit hash bump in `CHANGELOG.md` and explain any breaking API changes.
+
+### Host Tooling Checklist
+
+- Ensure `zig version` reports **0.14.0** or newer before running build scripts.
+- Install Xcode command line tools (`xcode-select --install`) so `clang`, `lipo`, `dsymutil`, and Metal headers are present.
+- Provide `CMake` and `ninja` when refreshing libghostty vendor dependencies (not needed for routine builds).
+- Run `zig fetch --global-cache-dir ~/.cache/zig` once per machine to populate the cache and avoid repeated downloads.
 
 ### C++/Objective-C Guidelines
 

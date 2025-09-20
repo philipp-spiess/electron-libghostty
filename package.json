@@ -39,8 +39,9 @@
   ],
   "scripts": {
     "build": "tsdown",
+    "build:libghostty": "./scripts/build-libghostty.sh",
     "build:native": "prebuildify --napi --strip --tag-armv --arch=arm64 && prebuildify --napi --strip --arch=x64",
-    "build:all": "bun run build:native && bun run build",
+    "build:all": "bun run build:libghostty && bun run build:native && bun run build",
     "clean": "rimraf build prebuilds dist",
     "prepack": "bun run build:all",
     "dev": "bun run build:all && run-p watch-examples start",
