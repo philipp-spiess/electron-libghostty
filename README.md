@@ -1,18 +1,18 @@
-# electron-liquid-glass
+# electron-libghostty
 
 <div align="center">
 
-<img width="387" alt="image" src="https://github.com/user-attachments/assets/3c3c9ea6-2663-4292-b812-a630c2c3f65b" />
+![screenshot](screenshot.png)
 
-![npm](https://img.shields.io/npm/v/electron-liquid-glass)
-![npm downloads](https://img.shields.io/npm/dm/electron-liquid-glass)
-![GitHub](https://img.shields.io/github/license/meridius-labs/electron-liquid-glass)
+![npm](https://img.shields.io/npm/v/electron-libghostty)
+![npm downloads](https://img.shields.io/npm/dm/electron-libghostty)
+![GitHub](https://img.shields.io/github/license/meridius-labs/electron-libghostty)
 ![Platform](https://img.shields.io/badge/platform-macOS-blue)
-![Node](https://img.shields.io/node/v/electron-liquid-glass)
+![Node](https://img.shields.io/node/v/electron-libghostty)
 
-**Modern macOS glass effects for Electron applications**
+**Native libghostty terminal renderer for Electron**
 
-_🪄 NATIVE `NSGlassEffectView` integration with ZERO CSS hacks_
+_Embed high-performance Ghostty terminal surfaces directly in Electron windows_
 
 [Installation](#-installation) • [Quick Start](#-quick-start) • [API](#-api-reference) • [Examples](examples/) • [Contributing](#-contributing)
 
@@ -20,29 +20,19 @@ _🪄 NATIVE `NSGlassEffectView` integration with ZERO CSS hacks_
 
 ---
 
+> **⚠️ Preview Release**: This is a preview release. We're planning to migrate to [Shared Texture](https://github.com/electron/electron/pull/47317) for improved performance in future versions.
+
 ## ✨ Features
 
-- 🖥️ **Ghostty Terminal Embedding** – Host libghostty surfaces directly inside Electron tabs.
-- 🪟 **Native Glass Effects** – Real `NSGlassEffectView` integration, not CSS approximations.
-- ⚡ **Zero Configuration** – Works out of the box with any Electron app.
-- 🎨 **Fully Customizable** – Corner radius, tint colors, and glass variants.
-- 📦 **Modern Package** – Dual ESM/CommonJS support with TypeScript declarations.
-- 🌙 **Auto Dark Mode** – Automatically adapts to system appearance changes.
+- 🖥️ **Native Terminal Rendering** – Powered by libghostty for native-quality terminal emulation
+- ⚡ **High Performance** – Direct rendering to native macOS views
+- 🎯 **Precise Positioning** – Overlay terminal surfaces anywhere in your Electron UI
+- 📦 **Modern Package** – Dual ESM/CommonJS support with TypeScript declarations
 
 ## 🚀 Installation
 
 ```bash
-# npm
-npm install electron-liquid-glass
-
-# yarn
-yarn add electron-liquid-glass
-
-# pnpm
-pnpm add electron-liquid-glass
-
-# bun
-bun add electron-liquid-glass
+pnpm add electron-libghostty
 ```
 
 ### Requirements
@@ -52,194 +42,215 @@ bun add electron-liquid-glass
 - **Node.js 22+**
 - **Zig 0.14.0+** (only required when building libghostty locally)
 
-> **Note**: This package only works on macOS. On other platforms, it provides safe no-op fallbacks.
+> **Note**: This package only works on macOS.
 
 ## 🎯 Quick Start
 
-### Basic Usage
-
-```javascript
-import { app, BrowserWindow } from "electron";
-import liquidGlass from "electron-liquid-glass";
-
-app.whenReady().then(() => {
-  const win = new BrowserWindow({
-    width: 800,
-    height: 600,
-
-    vibrancy: false, // <-- ❌❌❌ do NOT set vibrancy alongside with liquid glass, it will override and look blurry
-
-    transparent: true, // <-- This MUST be true
-  });
-
-  win.setWindowButtonVisibility(true); // <-- ✅ This is required to show the window buttons
-
-  win.loadFile("index.html");
-
-  /**
-   * 🪄 Apply glass effect after content loads 🪄
-   */
-  win.webContents.once("did-finish-load", () => {
-    // 🪄 Apply effect, get handle
-    const glassId = liquidGlass.addView(win.getNativeWindowHandle(), {
-      /* options */
-    });
-
-    // Experimental, undocumented private APIs
-    liquidGlass.unstable_setVariant(glassId, 2);
-  });
-});
-```
-
-### TypeScript Usage
+### Main Process (Electron)
 
 ```typescript
-import { BrowserWindow } from "electron";
-import liquidGlass, { GlassOptions } from "electron-liquid-glass";
+import { app, BrowserWindow, ipcMain } from 'electron'
+import ghosttyHost from 'electron-libghostty'
 
-const options: GlassOptions = {
-  cornerRadius: 16, // (optional)
-  tintColor: "#44000010", // black tint (optional)
-  opaque: true, // add opaque background behind glass (optional)
-};
+let mainWindow: BrowserWindow
+let surfaceId: number | null = null
 
-liquidGlass.addView(window.getNativeWindowHandle(), options);
+app.whenReady().then(() => {
+  mainWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  })
+
+  mainWindow.loadFile('index.html')
+
+  // Listen for events from the terminal
+  ghosttyHost.onEvent((event) => {
+    console.log('[ghostty] event', event)
+  })
+
+  // Handle focus/blur
+  mainWindow.on('focus', () => {
+    if (surfaceId !== null) {
+      ghosttyHost.setFocus(surfaceId, true)
+    }
+  })
+
+  mainWindow.on('blur', () => {
+    if (surfaceId !== null) {
+      ghosttyHost.setFocus(surfaceId, false)
+    }
+  })
+})
+
+// Create terminal surface at specified bounds
+ipcMain.on('native-overlay:update', (_event, rect) => {
+  if (surfaceId === null) {
+    surfaceId = ghosttyHost.create(
+      mainWindow.getNativeWindowHandle(),
+      rect
+    )
+  } else {
+    ghosttyHost.resize(surfaceId, rect)
+  }
+})
+
+// Clean up terminal surface
+ipcMain.on('native-overlay:hide', () => {
+  if (surfaceId !== null) {
+    ghosttyHost.destroy(surfaceId)
+    surfaceId = null
+  }
+})
+```
+
+### Renderer Process
+
+```javascript
+const { ipcRenderer } = require('electron')
+
+// Calculate terminal bounds from a DOM element
+function getTargetRect() {
+  const target = document.querySelector('#terminal-container')
+  const rect = target.getBoundingClientRect()
+  const scale = window.devicePixelRatio || 1
+
+  return {
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    scale,
+  }
+}
+
+// Update terminal position
+function updateTerminal() {
+  const rect = getTargetRect()
+  ipcRenderer.send('native-overlay:update', rect)
+}
+
+// Track element position changes
+window.addEventListener('DOMContentLoaded', () => {
+  const target = document.querySelector('#terminal-container')
+
+  // Update on resize
+  new ResizeObserver(() => updateTerminal()).observe(target)
+
+  // Update on scroll
+  window.addEventListener('scroll', updateTerminal, { passive: true })
+
+  // Initial update
+  updateTerminal()
+})
 ```
 
 ## 📚 API Reference
 
-### `liquidGlass.addView(handle, options?)`
+### `ghosttyHost.create(handle, rect)`
 
-Applies a glass effect to an Electron window.
+Creates a new terminal surface overlay.
 
 **Parameters:**
-
 - `handle: Buffer` - The native window handle from `BrowserWindow.getNativeWindowHandle()`
-- `options?: GlassOptions` - Configuration options
+- `rect: { x: number, y: number, width: number, height: number, scale?: number }` - Position and size
 
-**Returns:** `number` - A unique view ID for future operations
+**Returns:** `number` - Surface ID for future operations
 
-### `GlassOptions`
+### `ghosttyHost.resize(surfaceId, rect)`
 
-```typescript
-interface GlassOptions {
-  cornerRadius?: number; // Corner radius in pixels (default: 0)
-  tintColor?: string; // Hex color with optional alpha (#RRGGBB or #RRGGBBAA)
-  opaque?: boolean; // Add opaque background behind glass (default: false)
-}
-```
+Updates the position and size of an existing terminal surface.
 
----
+**Parameters:**
+- `surfaceId: number` - The surface ID returned from `create()`
+- `rect: { x: number, y: number, width: number, height: number, scale?: number }` - New bounds
 
-### UNDOCUMENTED EXPERIMENTAL METHODS
+### `ghosttyHost.destroy(surfaceId)`
 
-> ⚠️ **Warning**: DO NOT USE IN PROD. These methods use private macOS APIs and may change in future versions.
+Destroys a terminal surface.
 
-```typescript
-// Glass variants (number) (0-15, 19 are functional)
-liquidGlass.unstable_setVariant(glassId, 2);
+**Parameters:**
+- `surfaceId: number` - The surface ID to destroy
 
-// Scrim overlay (0 = off, 1 = on)
-liquidGlass.unstable_setScrim(glassId, 1);
+### `ghosttyHost.setFocus(surfaceId, focused)`
 
-// Subdued state (0 = normal, 1 = subdued)
-liquidGlass.unstable_setSubdued(glassId, 1);
-```
+Sets the focus state of a terminal surface.
 
-## 🧩 Libghostty Embedding
+**Parameters:**
+- `surfaceId: number` - The surface ID
+- `focused: boolean` - Whether the surface should be focused
 
-- Terminal surfaces originate from the vendored `libghostty` submodule in `third_party/libghostty`.
-- The C API exposed to Objective-C++ lives in `third_party/libghostty/include/ghostty.h`.
-- Defaults and embedded asset tables are defined in `third_party/libghostty/src/apprt/embedded.zig`.
-- Ghostty’s macOS Swift sources (`third_party/libghostty/macos/Sources/App/macOS/AppDelegate.swift`, `Ghostty.Surface.swift`, etc.) illustrate the expected lifecycle and threading model for `ghostty_app_t` and `ghostty_surface_t`.
-- See [docs/libghostty.md](docs/libghostty.md) for build flags, environment variables, and integration steps specific to this repo.
+### `ghosttyHost.setOccluded(surfaceId, occluded)`
+
+Sets the occlusion state (visibility) of a terminal surface.
+
+**Parameters:**
+- `surfaceId: number` - The surface ID
+- `occluded: boolean` - Whether the surface is occluded (hidden)
+
+### `ghosttyHost.onEvent(callback)`
+
+Registers a callback for terminal events.
+
+**Parameters:**
+- `callback: (event: any) => void` - Event handler function
+
+## 🏗️ How It Works
+
+electron-libghostty embeds native Ghostty terminal surfaces as overlays within Electron windows:
+
+1. **Native Terminal**: Uses libghostty's native macOS rendering for high-performance terminal emulation
+2. **Overlay Positioning**: Terminal surfaces are positioned over Electron web content at specified coordinates
+3. **Event Handling**: Keyboard and mouse events are properly routed to the terminal surface
+4. **Lifecycle Management**: Surfaces can be created, resized, focused, and destroyed dynamically
+
+See the [examples/](examples/) directory for a complete working implementation.
 
 ## 🔧 Development
 
 ### Building from Source
 
 ```bash
-# Clone the repository
-git clone https://github.com/meridius-labs/electron-liquid-glass.git
-cd electron-liquid-glass
+git clone https://github.com/meridius-labs/electron-libghostty.git
+cd electron-libghostty
 
-# Install dependencies
-bun install
+pnpm install
 
 # Build native module
-bun run build:native
+pnpm run build:native
 
 # Build TypeScript library
-bun run build
+pnpm run build
 
 # Build everything
-bun run build:all
-```
-
-### Rebuilding for Custom Electron
-
-If you're using a custom Electron version:
-
-```bash
-npx electron-rebuild -f -w electron-liquid-glass
+pnpm run build:all
 ```
 
 ### Project Structure
 
 ```
-electron-liquid-glass/
-├── src/                 # Native C++ source code
-│   ├── glass_effect.mm  # Objective-C++ implementation
-│   └── liquidglass.cc   # Node.js addon bindings
-├── js/                  # TypeScript source
-│   ├── index.ts         # Main library code
-│   └── native-loader.ts # Native module loader
-├── dist/                # Built library (generated)
-├── examples/            # Example applications
-└── prebuilds/          # Pre-built binaries
+electron-libghostty/
+├── src/                    # Native Objective-C++ source
+│   ├── overlay_view.mm     # Terminal surface overlay
+│   └── liquidglass.cc      # Node.js addon bindings
+├── js/                     # TypeScript source
+│   └── index.ts            # Main library code
+├── third_party/libghostty/ # Ghostty terminal library
+├── examples/               # Example application
+└── dist/                   # Built library (generated)
 ```
-
-## 🏗️ How It Works
-
-1. **Native Integration**: Uses Objective-C++ to create `NSGlassEffectView` instances
-2. **View Hierarchy**: Inserts glass views behind your web content, not over it
-3. **Automatic Updates**: Listens for system appearance changes to keep effects in sync
-4. **Memory Management**: Properly manages native view lifecycle
-
-### Technical Details
-
-- **Primary**: Uses `NSGlassEffectView` API when available
-- **Fallback**: Falls back to public `NSVisualEffectView` on older systems
-- **Performance**: Minimal overhead, native rendering performance
-- **Compatibility**: Works with all Electron window configurations
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-### Development Setup
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes and test thoroughly
-4. Commit with conventional commits: `git commit -m "feat: add amazing feature"`
-5. Push and create a Pull Request
-
-### Reporting Issues
-
-- Use the [issue tracker](https://github.com/meridius-labs/electron-liquid-glass/issues)
-- Include your macOS version, Electron version, and Node.js version
-- Provide a minimal reproduction case when possible
-
-## 📋 Roadmap
-
-- [ ] **View Management** - Remove and update existing glass views
+Contributions are welcome! Please open an issue or PR on [GitHub](https://github.com/meridius-labs/electron-libghostty).
 
 ## 🙏 Acknowledgments
 
-- Apple's private `NSGlassEffectView` API documentation (reverse-engineered)
-- The Electron team for excellent native integration capabilities
-- Contributors and users who help improve this library
+- [Ghostty](https://github.com/ghostty-org/ghostty) - The excellent terminal emulator that powers this library
+- The Electron team for native integration capabilities
 
 ## 📄 License
 
@@ -251,6 +262,6 @@ MIT © [Meridius Labs](https://github.com/meridius-labs) 2025
 
 **Made with ❤️ for the Electron community**
 
-[⭐ Star on GitHub](https://github.com/meridius-labs/electron-liquid-glass) • [🐛 Report Bug](https://github.com/meridius-labs/electron-liquid-glass/issues) • [💡 Request Feature](https://github.com/meridius-labs/electron-liquid-glass/issues)
+[⭐ Star on GitHub](https://github.com/meridius-labs/electron-libghostty) • [🐛 Report Bug](https://github.com/meridius-labs/electron-libghostty/issues) • [💡 Request Feature](https://github.com/meridius-labs/electron-libghostty/issues)
 
 </div>
