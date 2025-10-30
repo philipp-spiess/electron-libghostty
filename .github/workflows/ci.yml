@@ -65,7 +65,7 @@ jobs:
           echo "✅ All builds generated successfully"
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dist-files
           path: dist/
@@ -147,7 +147,7 @@ jobs:
           "
 
       - name: Upload prebuilds
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: prebuilds-${{ matrix.os }}-node${{ matrix.node-version }}
           path: prebuilds/
